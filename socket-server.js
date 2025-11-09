@@ -60,6 +60,13 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ✅ Listen for confirmation from admin
+  socket.on("admin_confirm_txn", (data) => {
+    console.log("✅ Admin confirmed transaction:", data);
+    // Echo back to the original client (if known)
+    io.emit("txn_confirmed", data);
+  });
+
   socket.on("disconnect", () => {
     console.log("socket disconnected:", socket.id);
   });
