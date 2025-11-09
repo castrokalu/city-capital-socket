@@ -16,6 +16,9 @@ const io = new Server(server, {
 
 app.use(express.json());
 
+// 💾 Temporary store for confirmations
+const pendingConfirmations = {};
+
 // Simple auth token for the HTTP emit endpoint (rotate / store in env)
 const SECRET = process.env.SOCKET_SECRET || "replace_with_a_strong_secret";
 
@@ -61,12 +64,17 @@ io.on("connection", (socket) => {
   });
 
   // ✅ Listen for confirmation from admin
-  socket.on("admin_confirm_txn", (data) => {
+ socket.on("admin_confirm_txn", (data) => {
     console.log("✅ Admin confirmed transaction:", data);
-    // Echo back to the original client (if known)
+    pendingConfirmations[data.transaction_id] = data;
     io.emit("txn_confirmed", data);
   });
 
+   socket.on("user_join", ({ transaction_id }) => {
+    if (pendingConfirmations[transaction_id]) {
+      socket.emit("txn_confirmed", pendingConfirmations[transaction_id]);
+    }
+  });
   socket.on("disconnect", () => {
     console.log("socket disconnected:", socket.id);
   });
