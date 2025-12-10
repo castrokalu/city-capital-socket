@@ -101,17 +101,14 @@ io.on("connection", (socket) => {
   });
 
   // ================= TRANSACTION HANDLERS =================
-  socket.on("txn_confirmed", (data) => {
-    console.log("✅ Admin confirmed transaction:", data);
-    pendingConfirmations[data.transaction_id] = data;
-    io.emit("txn_confirmed", data);
-  });
+  function emitTransactionUpdate(transaction_id, data, status) {
+  const payload = { ...data, status };
+  pendingConfirmations[transaction_id] = payload;
+  io.emit(`txn_${status}`, payload);
+}
 
-  socket.on("txn_rejected", (data) => {
-    console.log("❌ Admin rejected transaction:", data);
-    pendingConfirmations[data.transaction_id] = { ...data, status: "rejected" };
-    io.emit("txn_rejected", data);
-  });
+  socket.on("txn_confirmed", (data) => emitTransactionUpdate(data.transaction_id, data, "confirmed"));
+  socket.on("txn_rejected", (data) => emitTransactionUpdate(data.transaction_id, data, "rejected"));
 
   socket.on("user_join", ({ transaction_id }) => {
     if (pendingConfirmations[transaction_id]) {
