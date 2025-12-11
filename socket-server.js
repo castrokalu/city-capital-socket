@@ -70,14 +70,14 @@ io.on("connection", (socket) => {
  socket.on("admin_confirm_txn", (data) => {
     console.log("✅ Admin confirmed transaction:", data);
     pendingConfirmations[data.transaction_id] = data;
-    io.emit("txn_confirmed", data);
+    io.to(`txn-${data.transaction_id}`).emit("txn_confirmed", data);
   });
 // ✅ Listen for rejection from admin
 socket.on("admin-reject-txn", (data) => {
   console.log("❌ Admin rejected transaction:", data);
   pendingConfirmations[data.transaction_id] = { ...data, status: "rejected" };
   // Notify all connected clients (or just admins if you prefer)
-  io.emit("txn_rejected", data);
+ io.to(`txn-${data.transaction_id}`).emit("txn_rejected", data);
 });
 
    socket.on("user_join", ({ transaction_id }) => {
