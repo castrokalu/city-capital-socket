@@ -121,7 +121,10 @@ io.on("connection", (socket) => {
     socket.on("admin_confirm_txn", (data) => {
         console.log("Admin confirmed transaction:", data);
 
-        pendingConfirmations[data.transaction_id] = data;
+        pendingConfirmations[data.transaction_id] = { 
+            ...data, 
+            status: "confirmed"
+         };
 
         const roomName = `txn-${data.transaction_id}`;
         io.to(roomName).emit("txn_confirmed", data);
