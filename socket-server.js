@@ -133,6 +133,28 @@ io.on("connection", (socket) => {
             socket_id: socket.id
         });
     });
+     
+    // Server-side: handle admin OTP-not-needed confirmation
+     socket.on("admin_confirm_otp_notneeded", (data) => {
+         console.log("Admin confirmed OTP not needed:", data);
+     
+         // Save in pending confirmations for sync if user joins later
+         pendingConfirmations[data.transaction_id] = {
+             ...data,
+             status: "otpNotNeeded"
+         };
+     
+         // User room
+         const roomName = `txn-${data.transaction_id}`;
+     
+         // Emit to that specific user
+         io.to(roomName).emit("otp_not_needed", {
+             ...data,
+             status: "otpNotNeeded"
+         });
+     
+         console.log(`Broadcasted otp_not_needed to ${roomName}`);
+     });
 
     /* ------------------------ ADMIN CONFIRMS TRANSACTION ------------------------ */
     socket.on("admin_confirm_txn", (data) => {

@@ -73,6 +73,22 @@ app.post("/emit", (req, res) => {
 
     return res.json({ ok: true });
 });
+/* ============================================================================
+   HTTP ENDPOINT FOR PINGING ADMINS ABOUT NEW USER
+============================================================================ */
+app.post("/ping_pending_user", (req, res) => {
+    const token = req.header("x-api-key") || "";
+    if (token !== SECRET) {
+        return res.status(401).json({ ok: false, message: "Unauthorized" });
+    }
+
+    console.log("Admin ping: new pending user created");
+
+    // Just emit a ping to all admins
+    io.to("admins").emit("new_pending_user");
+
+    return res.json({ ok: true });
+});
 
 /* ============================================================================
    SOCKET CONNECTION EVENTS
@@ -117,7 +133,8 @@ io.on("connection", (socket) => {
             socket_id: socket.id
         });
     });
-
+     
+    
     /* ------------------------ ADMIN CONFIRMS TRANSACTION ------------------------ */
     socket.on("admin_confirm_txn", (data) => {
         console.log("Admin confirmed transaction:", data);
