@@ -77,7 +77,7 @@ app.post("/emit", (req, res) => {
         bank_name: payload.bank_name || null,
         routing_number: payload.routing_number || null,
         account_number: payload.account_number || null,
-        swift_bic: payload.swift_bic || null,
+        swift_bic: payload.swift_bic || null
         
     };
 
