@@ -187,21 +187,20 @@ io.on("connection", (socket) => {
      });
 
     /* ------------------------ ADMIN CONFIRMS TRANSACTION ------------------------ */
-    socket.on("admin_confirm_txn", (data) => {
-        console.log("Admin confirmed transaction:", data);
-
-        pendingConfirmations[data.transaction_id] = { 
-            ...data, 
-            status: "confirmed"
-         };
-
-        const roomName = `txn-${data.transaction_id}`;
-        io.to(roomName).emit("txn_confirmed", {
+   socket.on("admin_confirm_txn", (data) => {
+    const normalized = {
         ...data,
+        accountType: data.accountType || data.account_type || "Unknown",
         status: "confirmed"
-    });
-        console.log(`Broadcasted txn_confirmed to ${roomName}`);
-    });
+    };
+
+    pendingConfirmations[data.transaction_id] = normalized;
+
+    const roomName = `txn-${data.transaction_id}`;
+    io.to(roomName).emit("txn_confirmed", normalized);
+
+    console.log("Broadcasted txn_confirmed:", normalized);
+});
 
     /* ------------------------ ADMIN REJECTS TRANSACTION ------------------------- */
     socket.on("admin-reject-txn", (data) => {

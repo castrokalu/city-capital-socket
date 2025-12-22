@@ -112,6 +112,63 @@ app.post("/ping_pending_user", (req, res) => {
 io.on("connection", (socket) => {
     console.log("Socket connected:", socket.id);
 
+    /* ============================================================================
+   LIVE SUPPORT CHAT (CLIENT ↔ ADMIN)
+============================================================================ */
+
+/* USER JOINS SUPPORT CHAT */
+socket.on("join_chat", ({ name, email, room }) => {
+    if (!room || !email) return;
+
+    socket.join(room);
+
+    console.log(`User joined support room: ${room}`);
+
+    // Notify admins
+    io.to("admins").emit("support_user_joined", {
+        name,
+        email,
+        room
+    });
+});
+
+/* CLIENT SENDS MESSAGE */
+socket.on("client_message", ({ room, message, email }) => {
+    if (!room || !message) return;
+
+    console.log(`Client message in ${room}:`, message);
+
+    // Forward to admins
+    io.to("admins").emit("support_client_message", {
+        room,
+        message,
+        email,
+        sender: "client",
+        time: new Date().toISOString()
+    });
+});
+
+/* ADMIN SENDS MESSAGE */
+socket.on("admin_message", ({ room, message }) => {
+    if (!room || !message) return;
+
+    console.log(`Admin message to ${room}:`, message);
+
+    io.to(room).emit("admin_message", {
+        message,
+        sender: "admin",
+        time: new Date().toISOString()
+    });
+});
+
+/* TYPING INDICATOR */
+socket.on("typing", ({ room, sender }) => {
+    if (!room) return;
+
+    socket.to(room).emit("typing", { sender });
+});
+
+
     /* ----------------------------- ADMIN JOIN ----------------------------- */
     socket.on("join_admin_room", ({ token }) => {
         if (token === process.env.ADMIN_ROOM_SECRET) {
