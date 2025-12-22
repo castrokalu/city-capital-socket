@@ -12,6 +12,10 @@ console.log("Env Loaded:", {
     ADMIN_ROOM_SECRET: process.env.ADMIN_ROOM_SECRET
 });
 
+
+const ADMIN_SECRET = process.env.ADMIN_ROOM_SECRET || "admintoken";
+
+
 const app = express();
 const server = http.createServer(app);
 
@@ -30,6 +34,8 @@ const io = new Server(server, {
 
 app.use(express.json());
 
+// Support chat online users
+const supportClients = {}; 
 // TEMP DATA STORE (you may move to DB later)
 const pendingConfirmations = {};
 
@@ -112,17 +118,93 @@ app.post("/ping_pending_user", (req, res) => {
 io.on("connection", (socket) => {
     console.log("Socket connected:", socket.id);
 
-    /* ----------------------------- ADMIN JOIN ----------------------------- */
-    socket.on("join_admin_room", ({ token }) => {
-        if (token === process.env.ADMIN_ROOM_SECRET) {
-            socket.join("admins");
-            socket.emit("joined_admin");
-            console.log(`Admin joined: ${socket.id}`);
-        } else {
-            socket.emit("error", "Invalid admin token");
-        }
+    /* ============================================================================
+   LIVE SUPPORT CHAT (CLIENT ↔ ADMIN)
+============================================================================ */
+
+ /* ====================== CLIENT JOINS SUPPORT ===================== */
+    socket.on("join_chat", ({ name, email, room }) => {
+        if (!name || !email || !room) return;
+
+        socket.join(room);
+
+        supportClients[socket.id] = {
+            socketId: socket.id,
+            name,
+            email,
+            room
+        };
+
+        io.to("admins").emit("support_user_joined", supportClients[socket.id]);
+
+        console.log("Support client joined:", supportClients[socket.id]);
     });
 
+    /* ====================== CLIENT MESSAGE ====================== */
+    socket.on("client_message", ({ room, message, email }) => {
+        if (!room || !message) return;
+
+        io.to("admins").emit("support_client_message", {
+            room,
+            message,
+            email,
+            sender: "client",
+            time: new Date().toISOString()
+        });
+    });
+
+    /* ====================== ADMIN MESSAGE ====================== */
+    socket.on("admin_message", ({ room, message }) => {
+        if (!room || !message) return;
+
+        io.to(room).emit("admin_message", {
+            message,
+            sender: "admin",
+            time: new Date().toISOString()
+        });
+    });
+
+    /* ====================== TYPING ====================== */
+    socket.on("typing", ({ room, sender }) => {
+        if (!room) return;
+        socket.to(room).emit("typing", { sender });
+    });
+
+    /* ====================== ADMIN JOIN ====================== */
+    socket.on("join_admin_room", ({ token }) => {
+        if (token !== ADMIN_SECRET) {
+            socket.emit("error", "Unauthorized admin");
+            return;
+        }
+
+        socket.join("admins");
+        socket.emit("joined_admin");
+
+        // Sync all online support clients
+        socket.emit(
+            "sync_support_clients",
+            Object.values(supportClients)
+        );
+
+        console.log("Admin joined:", socket.id);
+    });
+
+    /* ====================== DISCONNECT ====================== */
+    socket.on("disconnect", () => {
+        if (supportClients[socket.id]) {
+            io.to("admins").emit("support_user_left", {
+                socketId: socket.id,
+                room: supportClients[socket.id].room
+            });
+
+            delete supportClients[socket.id];
+        }
+
+        console.log("Socket disconnected:", socket.id);
+    });
+
+
+/* ============================= SERVER ============================== */
     /* -------------------- USER JOINS TRANSACTION ROOM -------------------- */
     socket.on("user_join", ({ transaction_id }) => {
         if (!transaction_id) return;
