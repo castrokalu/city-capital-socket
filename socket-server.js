@@ -12,6 +12,10 @@ console.log("Env Loaded:", {
     ADMIN_ROOM_SECRET: process.env.ADMIN_ROOM_SECRET
 });
 
+
+const ADMIN_SECRET = process.env.ADMIN_ROOM_SECRET || "admintoken";
+
+
 const app = express();
 const server = http.createServer(app);
 
